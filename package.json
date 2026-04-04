@@ -1,0 +1,16 @@
+{
+  "name": "coffee-supply-chain",
+  "version": "1.0.0",
+  "description": "Bitcoin-native coffee supply chain platform — Phase 1 prototype",
+  "private": true,
+  "scripts": {
+    "install": "cd backend && npm install",
+    "start": "cd backend && npm start",
+    "dev": "cd backend && npm run dev",
+    "seed": "cd backend && npm run seed",
+    "test": "cd backend && npm test"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

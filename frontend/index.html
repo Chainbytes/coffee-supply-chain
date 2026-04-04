@@ -1,0 +1,916 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Coffee Provenance — Chainbytes</title>
+  <style>
+    /* ------------------------------------------------------------------ reset + tokens */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --espresso:    #1a0a00;
+      --roast:       #3d1c00;
+      --mahogany:    #6b2d0e;
+      --caramel:     #c07830;
+      --honey:       #e8a44a;
+      --cream:       #fdf6ed;
+      --latte:       #f5e6cc;
+      --parchment:   #ede0c8;
+      --sage:        #4a6741;
+      --sage-light:  #6b9463;
+      --text:        #2a1505;
+      --text-muted:  #7a5c3a;
+      --border:      #d4b896;
+      --card-bg:     #fffdf9;
+      --shadow:      rgba(61, 28, 0, 0.12);
+
+      --font-serif: 'Georgia', 'Palatino Linotype', serif;
+      --font-sans:  system-ui, -apple-system, 'Segoe UI', sans-serif;
+
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 22px;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--cream);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.6;
+    }
+
+    /* ------------------------------------------------------------------ loading / error states */
+    #loading-state, #error-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 80vh;
+      gap: 1.5rem;
+      padding: 2rem;
+      text-align: center;
+    }
+
+    .spinner {
+      width: 48px; height: 48px;
+      border: 4px solid var(--parchment);
+      border-top-color: var(--caramel);
+      border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .loading-text { color: var(--text-muted); font-size: 1.1rem; }
+
+    .error-icon { font-size: 3rem; }
+    .error-message { font-size: 1.2rem; font-weight: 600; color: var(--mahogany); }
+    .error-sub { color: var(--text-muted); max-width: 360px; }
+
+    /* ------------------------------------------------------------------ hero */
+    .hero {
+      background: linear-gradient(160deg, var(--espresso) 0%, var(--roast) 50%, var(--mahogany) 100%);
+      color: white;
+      padding: 3rem 1.5rem 4rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image:
+        radial-gradient(circle at 20% 50%, rgba(192,120,48,0.15) 0%, transparent 50%),
+        radial-gradient(circle at 80% 20%, rgba(232,164,74,0.1) 0%, transparent 40%);
+    }
+
+    .hero-inner {
+      position: relative;
+      max-width: 760px;
+      margin: 0 auto;
+    }
+
+    .verified-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: rgba(255,255,255,0.12);
+      border: 1px solid rgba(255,255,255,0.25);
+      border-radius: 999px;
+      padding: 0.35rem 0.9rem;
+      font-size: 0.78rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      margin-bottom: 1.5rem;
+      backdrop-filter: blur(8px);
+    }
+
+    .verified-badge .dot {
+      width: 7px; height: 7px;
+      background: var(--honey);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--honey);
+    }
+
+    .hero h1 {
+      font-family: var(--font-serif);
+      font-size: clamp(2rem, 5vw, 3rem);
+      font-weight: 400;
+      line-height: 1.2;
+      margin-bottom: 0.75rem;
+    }
+
+    .hero h1 em { font-style: italic; color: var(--honey); }
+
+    .hero-sub {
+      font-size: 1.05rem;
+      opacity: 0.8;
+      max-width: 520px;
+      margin-bottom: 2rem;
+    }
+
+    .hero-stats {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+    }
+
+    .stat-pill {
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: var(--radius-sm);
+      padding: 0.6rem 1rem;
+      backdrop-filter: blur(8px);
+    }
+
+    .stat-pill .label {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      opacity: 0.65;
+    }
+
+    .stat-pill .value {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: var(--honey);
+    }
+
+    /* ------------------------------------------------------------------ layout */
+    .content {
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 2.5rem 1.5rem 4rem;
+    }
+
+    /* ------------------------------------------------------------------ section titles */
+    .section-label {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      font-size: 0.73rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--caramel);
+      margin-bottom: 1rem;
+    }
+
+    .section-label::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* ------------------------------------------------------------------ cards */
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 1.5rem;
+      margin-bottom: 1.75rem;
+      box-shadow: 0 2px 12px var(--shadow);
+    }
+
+    /* ------------------------------------------------------------------ farm card */
+    .farm-header {
+      display: flex;
+      align-items: flex-start;
+      gap: 1rem;
+    }
+
+    .farm-icon {
+      width: 56px; height: 56px;
+      background: linear-gradient(135deg, var(--sage) 0%, var(--sage-light) 100%);
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.6rem;
+      flex-shrink: 0;
+    }
+
+    .farm-title {
+      font-family: var(--font-serif);
+      font-size: 1.4rem;
+      font-weight: 400;
+      color: var(--roast);
+      line-height: 1.2;
+    }
+
+    .farm-location {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      margin-top: 0.2rem;
+    }
+
+    .farm-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.75rem;
+      margin-top: 1.25rem;
+    }
+
+    .meta-chip {
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+      background: var(--latte);
+      border: 1px solid var(--parchment);
+      border-radius: 999px;
+      padding: 0.3rem 0.8rem;
+      font-size: 0.85rem;
+      color: var(--text);
+    }
+
+    .meta-chip .icon { font-size: 0.9rem; }
+
+    /* ------------------------------------------------------------------ workers */
+    .workers-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 0.75rem;
+    }
+
+    .worker-card {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      background: var(--latte);
+      border: 1px solid var(--parchment);
+      border-radius: var(--radius-sm);
+      padding: 0.75rem;
+    }
+
+    .worker-avatar {
+      width: 40px; height: 40px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--caramel), var(--mahogany));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1rem;
+      color: white;
+      font-weight: 700;
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+
+    .worker-avatar img {
+      width: 100%; height: 100%;
+      object-fit: cover;
+    }
+
+    .worker-name {
+      font-size: 0.88rem;
+      font-weight: 600;
+      color: var(--text);
+      line-height: 1.3;
+    }
+
+    .worker-time {
+      font-size: 0.75rem;
+      color: var(--text-muted);
+    }
+
+    /* ------------------------------------------------------------------ custody timeline */
+    .timeline {
+      position: relative;
+      padding-left: 2.25rem;
+    }
+
+    .timeline::before {
+      content: '';
+      position: absolute;
+      left: 16px;
+      top: 24px;
+      bottom: 24px;
+      width: 2px;
+      background: linear-gradient(to bottom, var(--caramel), var(--parchment));
+    }
+
+    .timeline-step {
+      position: relative;
+      margin-bottom: 1.5rem;
+    }
+
+    .timeline-step:last-child { margin-bottom: 0; }
+
+    .step-dot {
+      position: absolute;
+      left: -2.25rem;
+      top: 0.25rem;
+      width: 32px; height: 32px;
+      border-radius: 50%;
+      background: var(--card-bg);
+      border: 2px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.9rem;
+      transition: all 0.2s;
+    }
+
+    .step-dot.active {
+      background: var(--caramel);
+      border-color: var(--caramel);
+      box-shadow: 0 0 0 4px rgba(192,120,48,0.15);
+    }
+
+    .step-body {
+      background: var(--latte);
+      border: 1px solid var(--parchment);
+      border-radius: var(--radius-sm);
+      padding: 1rem 1.1rem;
+    }
+
+    .step-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 0.5rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .step-entity {
+      font-weight: 700;
+      font-size: 0.95rem;
+      color: var(--roast);
+    }
+
+    .step-type-badge {
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding: 0.2rem 0.55rem;
+      border-radius: 999px;
+      white-space: nowrap;
+    }
+
+    .badge-farm     { background: #e8f4e8; color: #2e6b2e; }
+    .badge-wet_mill { background: #e8f0fa; color: #1a4a8a; }
+    .badge-dry_mill { background: #faf0e0; color: #8a5a1a; }
+    .badge-exporter { background: #faf0fa; color: #6a1a8a; }
+    .badge-roaster  { background: #fae8e8; color: #8a1a1a; }
+
+    .step-timestamp {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      margin-bottom: 0.75rem;
+    }
+
+    .step-meta {
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+    }
+
+    .step-meta-row {
+      display: flex;
+      gap: 0.5rem;
+      font-size: 0.83rem;
+    }
+
+    .step-meta-key {
+      color: var(--text-muted);
+      min-width: 130px;
+      flex-shrink: 0;
+    }
+
+    .step-meta-value { color: var(--text); font-weight: 500; }
+
+    .step-workers {
+      margin-top: 0.6rem;
+      font-size: 0.83rem;
+    }
+
+    .step-workers-label { color: var(--text-muted); margin-bottom: 0.25rem; }
+
+    .worker-pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.3rem;
+    }
+
+    .worker-pill {
+      background: rgba(192,120,48,0.12);
+      border: 1px solid rgba(192,120,48,0.25);
+      border-radius: 999px;
+      padding: 0.15rem 0.55rem;
+      font-size: 0.78rem;
+      color: var(--mahogany);
+    }
+
+    /* ------------------------------------------------------------------ lot details */
+    .lot-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 0.75rem;
+    }
+
+    .lot-stat {
+      background: var(--latte);
+      border: 1px solid var(--parchment);
+      border-radius: var(--radius-sm);
+      padding: 0.85rem;
+    }
+
+    .lot-stat-label {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--text-muted);
+      margin-bottom: 0.2rem;
+    }
+
+    .lot-stat-value {
+      font-size: 1.2rem;
+      font-weight: 700;
+      color: var(--roast);
+    }
+
+    .grade-badge {
+      display: inline-block;
+      width: 34px; height: 34px;
+      background: var(--caramel);
+      color: white;
+      border-radius: 50%;
+      text-align: center;
+      line-height: 34px;
+      font-weight: 800;
+      font-size: 1rem;
+    }
+
+    /* ------------------------------------------------------------------ payment summary */
+    .payment-box {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+      background: linear-gradient(135deg, #1a1a2e, #16213e);
+      border-radius: var(--radius-md);
+      padding: 1.2rem 1.5rem;
+      color: white;
+    }
+
+    .lightning-icon { font-size: 2rem; flex-shrink: 0; }
+
+    .payment-info { flex: 1; }
+
+    .payment-title {
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      opacity: 0.65;
+    }
+
+    .payment-amount {
+      font-size: 1.5rem;
+      font-weight: 800;
+      color: #f7931a;
+    }
+
+    .payment-sub {
+      font-size: 0.82rem;
+      opacity: 0.65;
+      margin-top: 0.1rem;
+    }
+
+    /* ------------------------------------------------------------------ asset id */
+    .asset-id-block {
+      margin-top: 1rem;
+      padding: 0.85rem 1rem;
+      background: var(--espresso);
+      border-radius: var(--radius-sm);
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+
+    .asset-id-label {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: rgba(255,255,255,0.4);
+      flex-shrink: 0;
+    }
+
+    .asset-id-value {
+      font-family: 'Courier New', monospace;
+      font-size: 0.75rem;
+      color: var(--honey);
+      word-break: break-all;
+    }
+
+    /* ------------------------------------------------------------------ footer */
+    .footer {
+      text-align: center;
+      padding: 2rem 1.5rem 3rem;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+    }
+
+    .footer a {
+      color: var(--caramel);
+      text-decoration: none;
+    }
+
+    .footer a:hover { text-decoration: underline; }
+
+    .powered-by {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      margin-top: 0.5rem;
+      font-size: 0.78rem;
+      opacity: 0.6;
+    }
+
+    /* ------------------------------------------------------------------ responsive */
+    @media (max-width: 520px) {
+      .hero { padding: 2rem 1rem 3rem; }
+      .hero-stats { gap: 0.6rem; }
+      .stat-pill { padding: 0.5rem 0.75rem; }
+      .farm-header { flex-direction: column; gap: 0.75rem; }
+      .workers-grid { grid-template-columns: 1fr 1fr; }
+      .lot-grid { grid-template-columns: 1fr 1fr; }
+      .step-meta-key { min-width: 100px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Loading state -->
+  <div id="loading-state">
+    <div class="spinner"></div>
+    <p class="loading-text">Loading provenance data...</p>
+  </div>
+
+  <!-- Error state -->
+  <div id="error-state" style="display:none">
+    <div class="error-icon">☕</div>
+    <p class="error-message">Lot not found</p>
+    <p class="error-sub" id="error-detail">The lot ID in this URL doesn't exist in our system.</p>
+  </div>
+
+  <!-- Main content (hidden until data loads) -->
+  <div id="main-content" style="display:none">
+
+    <!-- Hero -->
+    <header class="hero">
+      <div class="hero-inner">
+        <div class="verified-badge">
+          <span class="dot"></span>
+          Verified on Liquid Network
+        </div>
+        <h1>From <em id="hero-farm-name">Farm</em> to Cup</h1>
+        <p class="hero-sub">
+          Every step of this coffee's journey — from the hands that picked it
+          to the ship that carried it — is permanently recorded.
+        </p>
+        <div class="hero-stats">
+          <div class="stat-pill">
+            <div class="label">Harvest Date</div>
+            <div class="value" id="hero-harvest-date">—</div>
+          </div>
+          <div class="stat-pill">
+            <div class="label">Weight</div>
+            <div class="value" id="hero-weight">—</div>
+          </div>
+          <div class="stat-pill">
+            <div class="label">Grade</div>
+            <div class="value" id="hero-grade">—</div>
+          </div>
+          <div class="stat-pill">
+            <div class="label">Workers</div>
+            <div class="value" id="hero-workers">—</div>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <div class="content">
+
+      <!-- Farm information -->
+      <div class="section-label">The Farm</div>
+      <div class="card">
+        <div class="farm-header">
+          <div class="farm-icon">🌱</div>
+          <div>
+            <div class="farm-title" id="farm-name">—</div>
+            <div class="farm-location" id="farm-location">—</div>
+          </div>
+        </div>
+        <div class="farm-meta">
+          <div class="meta-chip">
+            <span class="icon">⛰️</span>
+            <span id="farm-altitude">—</span>
+          </div>
+          <div class="meta-chip">
+            <span class="icon">👤</span>
+            <span id="farm-owner">—</span>
+          </div>
+          <div class="meta-chip">
+            <span class="icon">📅</span>
+            <span id="harvest-date-chip">—</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Lot details -->
+      <div class="section-label">Harvest Lot</div>
+      <div class="card">
+        <div class="lot-grid" id="lot-grid">
+          <!-- populated by JS -->
+        </div>
+        <div class="asset-id-block">
+          <span class="asset-id-label">Liquid Asset</span>
+          <span class="asset-id-value" id="asset-id">—</span>
+        </div>
+      </div>
+
+      <!-- Workers -->
+      <div class="section-label">The People Behind This Coffee</div>
+      <div class="card">
+        <div class="workers-grid" id="workers-grid">
+          <!-- populated by JS -->
+        </div>
+        <div id="payment-summary-block" style="margin-top:1.25rem; display:none">
+          <div class="payment-box">
+            <div class="lightning-icon">⚡</div>
+            <div class="payment-info">
+              <div class="payment-title">Worker Payments — Lightning Network</div>
+              <div class="payment-amount" id="payment-amount">—</div>
+              <div class="payment-sub" id="payment-sub">—</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Custody chain -->
+      <div class="section-label">Chain of Custody</div>
+      <div class="card">
+        <div class="timeline" id="custody-timeline">
+          <!-- populated by JS -->
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <p>Provenance data recorded on <strong>Liquid Network</strong> (Bitcoin sidechain)</p>
+      <p>Payments settled via <strong>Lightning Network</strong></p>
+      <div class="powered-by">
+        <span>Powered by</span>
+        <strong>Chainbytes</strong>
+        <span>— Bitcoin-native supply chain for coffee</span>
+      </div>
+    </footer>
+
+  </div>
+
+  <script>
+    // ------------------------------------------------------------------ helpers
+    function fmt(iso) {
+      if (!iso) return '—';
+      const d = new Date(iso.replace(' ', 'T'));
+      return d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+    }
+
+    function fmtTime(iso) {
+      if (!iso) return '—';
+      const d = new Date(iso.replace(' ', 'T'));
+      return d.toLocaleString('en-US', {
+        year: 'numeric', month: 'short', day: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+      });
+    }
+
+    function initials(name) {
+      return name.split(' ').map(p => p[0]).slice(0, 2).join('').toUpperCase();
+    }
+
+    function entityLabel(type) {
+      const map = {
+        farm: 'Farm',
+        wet_mill: 'Wet Mill',
+        dry_mill: 'Dry Mill',
+        exporter: 'Exporter',
+        roaster: 'Roaster',
+      };
+      return map[type] || type;
+    }
+
+    function entityEmoji(type) {
+      const map = {
+        farm: '🌾',
+        wet_mill: '💧',
+        dry_mill: '☀️',
+        exporter: '🚢',
+        roaster: '🔥',
+      };
+      return map[type] || '📦';
+    }
+
+    function formatSats(sats) {
+      if (!sats) return '0 sats';
+      return sats.toLocaleString() + ' sats';
+    }
+
+    // ------------------------------------------------------------------ render
+    function render(data) {
+      const { lot, farm, shift, workers, transfers, payment_summary } = data;
+
+      // Hero
+      document.getElementById('hero-farm-name').textContent = farm.name;
+      document.getElementById('hero-harvest-date').textContent = fmt(shift.date);
+      document.getElementById('hero-weight').textContent = lot.weight_kg + ' kg';
+      document.getElementById('hero-grade').textContent = 'Grade ' + lot.grade;
+      document.getElementById('hero-workers').textContent = workers.length;
+
+      // Farm card
+      document.getElementById('farm-name').textContent = farm.name;
+      document.getElementById('farm-location').textContent = farm.location;
+      document.getElementById('farm-altitude').textContent = farm.altitude_m.toLocaleString() + ' m altitude';
+      document.getElementById('farm-owner').textContent = 'Owner: ' + farm.owner_name;
+      document.getElementById('harvest-date-chip').textContent = 'Harvested ' + fmt(shift.date);
+
+      // Lot stats
+      const lotGrid = document.getElementById('lot-grid');
+      const lotStats = [
+        { label: 'Weight', value: lot.weight_kg + ' kg' },
+        { label: 'Grade', value: `<span class="grade-badge">${lot.grade}</span>` },
+        { label: 'GPS', value: lot.gps_lat ? `${lot.gps_lat.toFixed(4)}, ${lot.gps_lng.toFixed(4)}` : 'Not recorded' },
+        { label: 'Lot ID', value: lot.id.slice(0, 8) + '…' },
+      ];
+      lotGrid.innerHTML = lotStats.map(s => `
+        <div class="lot-stat">
+          <div class="lot-stat-label">${s.label}</div>
+          <div class="lot-stat-value">${s.value}</div>
+        </div>
+      `).join('');
+
+      // Asset ID
+      document.getElementById('asset-id').textContent = lot.asset_id || '—';
+
+      // Workers
+      const workersGrid = document.getElementById('workers-grid');
+      if (workers.length === 0) {
+        workersGrid.innerHTML = '<p style="color:var(--text-muted);font-size:0.9rem">No check-in records for this lot.</p>';
+      } else {
+        workersGrid.innerHTML = workers.map(w => `
+          <div class="worker-card">
+            <div class="worker-avatar">
+              ${w.photo_url
+                ? `<img src="${w.photo_url}" alt="${w.name}">`
+                : initials(w.name)}
+            </div>
+            <div>
+              <div class="worker-name">${w.name}</div>
+              <div class="worker-time">${fmtTime(w.checked_in_at)}</div>
+            </div>
+          </div>
+        `).join('');
+      }
+
+      // Payment summary
+      if (payment_summary && payment_summary.worker_count > 0) {
+        document.getElementById('payment-summary-block').style.display = 'block';
+        document.getElementById('payment-amount').textContent = formatSats(payment_summary.total_sats);
+        document.getElementById('payment-sub').textContent =
+          `${payment_summary.worker_count} worker${payment_summary.worker_count > 1 ? 's' : ''} paid via Lightning Network`;
+      }
+
+      // Custody timeline
+      const timeline = document.getElementById('custody-timeline');
+      if (transfers.length === 0) {
+        timeline.innerHTML = '<p style="color:var(--text-muted);font-size:0.9rem">No custody records found.</p>';
+      } else {
+        timeline.innerHTML = transfers.map((t, i) => {
+          const meta = t.metadata || {};
+          const isOrigin = t.from_entity === t.to_entity;
+          const entity = isOrigin ? t.to_entity : t.to_entity;
+
+          // Build metadata rows
+          const skipKeys = ['action', 'workers', 'notes', 'shift_date'];
+          const metaRows = Object.entries(meta)
+            .filter(([k]) => !skipKeys.includes(k))
+            .map(([k, v]) => {
+              if (v === null || v === undefined) return '';
+              const label = k.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+              const val = typeof v === 'number' ? v.toLocaleString() : String(v);
+              return `
+                <div class="step-meta-row">
+                  <span class="step-meta-key">${label}</span>
+                  <span class="step-meta-value">${val}</span>
+                </div>`;
+            }).join('');
+
+          const workersList = Array.isArray(meta.workers) && meta.workers.length > 0
+            ? `<div class="step-workers">
+                 <div class="step-workers-label">Picked by</div>
+                 <div class="worker-pills">
+                   ${meta.workers.map(n => `<span class="worker-pill">${n}</span>`).join('')}
+                 </div>
+               </div>`
+            : '';
+
+          const notes = meta.notes
+            ? `<div class="step-meta-row" style="margin-top:0.4rem">
+                 <span class="step-meta-key">Notes</span>
+                 <span class="step-meta-value">${meta.notes}</span>
+               </div>`
+            : '';
+
+          return `
+            <div class="timeline-step">
+              <div class="step-dot ${i === transfers.length - 1 ? 'active' : ''}">
+                ${entityEmoji(t.entity_type)}
+              </div>
+              <div class="step-body">
+                <div class="step-header">
+                  <div class="step-entity">${entity}</div>
+                  <span class="step-type-badge badge-${t.entity_type}">${entityLabel(t.entity_type)}</span>
+                </div>
+                <div class="step-timestamp">${fmtTime(t.timestamp)}</div>
+                ${metaRows || workersList ? `
+                  <div class="step-meta">
+                    ${metaRows}
+                    ${workersList}
+                    ${notes}
+                  </div>` : ''}
+              </div>
+            </div>
+          `;
+        }).join('');
+      }
+
+      // Show content
+      document.getElementById('loading-state').style.display = 'none';
+      document.getElementById('main-content').style.display = 'block';
+      document.title = `${farm.name} — Coffee Provenance`;
+    }
+
+    // ------------------------------------------------------------------ fetch
+    async function load() {
+      // Extract lot ID from path: /provenance/:lotId
+      const pathParts = window.location.pathname.split('/').filter(Boolean);
+      const lotId = pathParts[pathParts.length - 1];
+
+      if (!lotId || pathParts[0] !== 'provenance') {
+        showError('Invalid URL', 'This page requires a lot ID in the URL: /provenance/{lotId}');
+        return;
+      }
+
+      try {
+        const res = await fetch(`/provenance/${lotId}/data`);
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          showError(err.error || 'Lot not found', `Lot ID: ${lotId}`);
+          return;
+        }
+        const data = await res.json();
+        render(data);
+      } catch (err) {
+        showError('Failed to load data', err.message);
+      }
+    }
+
+    function showError(message, detail) {
+      document.getElementById('loading-state').style.display = 'none';
+      document.getElementById('error-state').style.display = 'flex';
+      document.querySelector('.error-message').textContent = message;
+      document.getElementById('error-detail').textContent = detail || '';
+    }
+
+    load();
+  </script>
+</body>
+</html>
