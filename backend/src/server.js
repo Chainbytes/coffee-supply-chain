@@ -15,6 +15,8 @@ const payrollRoutes = require('./routes/payroll');
 const provenanceRoutes = require('./routes/provenance');
 const priceRoutes = require('./routes/price');
 
+const { startCleanupCron } = require('./lib/cleanup');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -106,6 +108,7 @@ app.use((err, req, res, next) => {
 
 // ------------------------------------------------------------------ start
 if (require.main === module) {
+  startCleanupCron();
   app.listen(PORT, () => {
     console.log('');
     console.log('  Chainbytes Coffee Supply Chain — Backend API');

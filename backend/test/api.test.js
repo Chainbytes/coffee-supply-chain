@@ -463,3 +463,77 @@ describe('Worker auto-registration on check-in', () => {
     assert.equal(res.body.name, 'Worker abcdef');
   });
 });
+
+// ------------------------------------------------------------------ cleanup
+
+describe('Session auto-cleanup', () => {
+  const { cleanupOldShifts } = require('../src/lib/cleanup');
+  const { getDb } = require('../src/db');
+  const { v4: uuidv4 } = require('uuid');
+
+  test('cleanupOldShifts removes closed shifts older than 24h', () => {
+    const db = getDb();
+    const oldId = uuidv4();
+    const oldDate = new Date(Date.now() - 48 * 3600000).toISOString(); // 48h ago
+
+    // Insert a closed shift with old closed_at
+    db.prepare(`
+      INSERT INTO shifts (id, farm_id, foreman_id, date, status, closed_at)
+      VALUES (?, ?, ?, '2026-01-01', 'closed', ?)
+    `).run(oldId, farmId, foremanId, oldDate);
+
+    // Insert a checkin for this shift
+    const checkinId = uuidv4();
+    db.prepare(`
+      INSERT INTO checkins (id, shift_id, worker_id)
+      VALUES (?, ?, ?)
+    `).run(checkinId, oldId, workerId);
+
+    const removed = cleanupOldShifts();
+    assert.ok(removed >= 1, `Expected at least 1 removed, got ${removed}`);
+
+    // Verify shift and checkin are gone
+    const shift = db.prepare('SELECT id FROM shifts WHERE id = ?').get(oldId);
+    assert.equal(shift, undefined);
+    const checkin = db.prepare('SELECT id FROM checkins WHERE id = ?').get(checkinId);
+    assert.equal(checkin, undefined);
+  });
+
+  test('cleanupOldShifts does NOT remove recent closed shifts', () => {
+    const db = getDb();
+    const recentId = uuidv4();
+    const recentDate = new Date(Date.now() - 1 * 3600000).toISOString(); // 1h ago
+
+    db.prepare(`
+      INSERT INTO shifts (id, farm_id, foreman_id, date, status, closed_at)
+      VALUES (?, ?, ?, '2026-01-02', 'closed', ?)
+    `).run(recentId, farmId, foremanId, recentDate);
+
+    cleanupOldShifts();
+
+    const shift = db.prepare('SELECT id FROM shifts WHERE id = ?').get(recentId);
+    assert.ok(shift, 'Recent closed shift should NOT be removed');
+
+    // Cleanup for test isolation
+    db.prepare('DELETE FROM shifts WHERE id = ?').run(recentId);
+  });
+
+  test('cleanupOldShifts does NOT remove open shifts', () => {
+    const db = getDb();
+    const openId = uuidv4();
+    const oldDate = new Date(Date.now() - 48 * 3600000).toISOString();
+
+    db.prepare(`
+      INSERT INTO shifts (id, farm_id, foreman_id, date, status, closed_at)
+      VALUES (?, ?, ?, '2026-01-03', 'open', ?)
+    `).run(openId, farmId, foremanId, oldDate);
+
+    cleanupOldShifts();
+
+    const shift = db.prepare('SELECT id FROM shifts WHERE id = ?').get(openId);
+    assert.ok(shift, 'Open shifts should NOT be removed regardless of age');
+
+    // Cleanup
+    db.prepare('DELETE FROM shifts WHERE id = ?').run(openId);
+  });
+});
