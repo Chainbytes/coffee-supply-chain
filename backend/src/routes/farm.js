@@ -54,4 +54,49 @@ router.get('/:id', (req, res) => {
   res.json({ ...farm, worker_count: workerCount });
 });
 
+/**
+ * GET /farm/:id/analytics
+ * Farm analytics: worker count, shift count, lot count, recent activity.
+ */
+router.get('/:id/analytics', (req, res) => {
+  const db = getDb();
+  const farm = db.prepare('SELECT * FROM farms WHERE id = ?').get(req.params.id);
+  if (!farm) return res.status(404).json({ error: 'Farm not found' });
+
+  const worker_count = db.prepare(
+    "SELECT COUNT(*) as count FROM workers WHERE farm_id = ?"
+  ).get(req.params.id).count;
+
+  const shift_count = db.prepare(
+    "SELECT COUNT(*) as count FROM shifts WHERE farm_id = ?"
+  ).get(req.params.id).count;
+
+  const lot_count = db.prepare(
+    "SELECT COUNT(*) as count FROM lots WHERE farm_id = ?"
+  ).get(req.params.id).count;
+
+  const recent_shifts = db.prepare(
+    "SELECT id, date, status, created_at, closed_at FROM shifts WHERE farm_id = ? ORDER BY created_at DESC LIMIT 5"
+  ).all(req.params.id);
+
+  const recent_checkins = db.prepare(`
+    SELECT c.id, c.worker_id, w.name as worker_name, c.checked_in_at, c.shift_id
+    FROM checkins c
+    JOIN shifts s ON c.shift_id = s.id
+    JOIN workers w ON c.worker_id = w.id
+    WHERE s.farm_id = ?
+    ORDER BY c.checked_in_at DESC LIMIT 10
+  `).all(req.params.id);
+
+  res.json({
+    farm_id: req.params.id,
+    farm_name: farm.name,
+    worker_count,
+    shift_count,
+    lot_count,
+    recent_shifts,
+    recent_checkins,
+  });
+});
+
 module.exports = router;

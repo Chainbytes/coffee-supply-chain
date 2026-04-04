@@ -339,6 +339,56 @@ describe('Payroll', () => {
   });
 });
 
+// ------------------------------------------------------------------ Farm analytics
+
+describe('Farm analytics', () => {
+  test('GET /farm/:id/analytics returns counts and recent activity', async () => {
+    const res = await get(`/farm/${farmId}/analytics`);
+    assert.equal(res.status, 200);
+    assert.equal(res.body.farm_id, farmId);
+    assert.equal(typeof res.body.farm_name, 'string');
+    assert.equal(typeof res.body.worker_count, 'number');
+    assert.ok(res.body.worker_count >= 2, 'should have at least 2 workers (foreman + worker)');
+    assert.equal(typeof res.body.shift_count, 'number');
+    assert.ok(res.body.shift_count >= 1, 'should have at least 1 shift');
+    assert.equal(typeof res.body.lot_count, 'number');
+    assert.ok(res.body.lot_count >= 1, 'should have at least 1 lot');
+    assert.ok(Array.isArray(res.body.recent_shifts));
+    assert.ok(res.body.recent_shifts.length >= 1);
+    assert.ok(Array.isArray(res.body.recent_checkins));
+    assert.ok(res.body.recent_checkins.length >= 1);
+    // Check recent_checkins shape
+    const checkin = res.body.recent_checkins[0];
+    assert.ok(checkin.worker_id);
+    assert.ok(checkin.worker_name);
+    assert.ok(checkin.checked_in_at);
+  });
+
+  test('GET /farm/:id/analytics returns 404 for unknown farm', async () => {
+    const res = await get('/farm/nonexistent-farm-id/analytics');
+    assert.equal(res.status, 404);
+  });
+
+  test('recent_shifts are ordered by most recent first', async () => {
+    const res = await get(`/farm/${farmId}/analytics`);
+    assert.equal(res.status, 200);
+    const shifts = res.body.recent_shifts;
+    if (shifts.length >= 2) {
+      assert.ok(
+        shifts[0].created_at >= shifts[1].created_at,
+        'shifts should be ordered newest first'
+      );
+    }
+  });
+
+  test('analytics limits recent_shifts to 5 and recent_checkins to 10', async () => {
+    const res = await get(`/farm/${farmId}/analytics`);
+    assert.equal(res.status, 200);
+    assert.ok(res.body.recent_shifts.length <= 5, 'recent_shifts capped at 5');
+    assert.ok(res.body.recent_checkins.length <= 10, 'recent_checkins capped at 10');
+  });
+});
+
 // ------------------------------------------------------------------ Feature 1: BTC Price
 
 describe('BTC Price', () => {
@@ -463,3 +513,4 @@ describe('Worker auto-registration on check-in', () => {
     assert.equal(res.body.name, 'Worker abcdef');
   });
 });
+
