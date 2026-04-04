@@ -115,6 +115,46 @@ router.get('/:id/payments', (req, res) => {
 });
 
 /**
+ * PUT /worker/:id
+ * Update a worker's profile (name, phone, photo_url, role, lightning_address).
+ */
+router.put('/:id', (req, res) => {
+  const db = getDb();
+  const worker = db.prepare('SELECT * FROM workers WHERE id = ?').get(req.params.id);
+  if (!worker) return res.status(404).json({ error: 'Worker not found' });
+
+  const allowed = ['name', 'phone', 'photo_url', 'role', 'lightning_address'];
+  const updates = [];
+  const values = [];
+
+  for (const field of allowed) {
+    if (req.body[field] !== undefined) {
+      if (field === 'role') {
+        const validRoles = ['worker', 'foreman'];
+        if (!validRoles.includes(req.body[field])) {
+          return res.status(400).json({ error: `Invalid role. Must be one of: ${validRoles.join(', ')}` });
+        }
+      }
+      if (field === 'name' && !req.body[field]) {
+        return res.status(400).json({ error: 'name cannot be empty' });
+      }
+      updates.push(`${field} = ?`);
+      values.push(req.body[field]);
+    }
+  }
+
+  if (updates.length === 0) {
+    return res.status(400).json({ error: 'No valid fields to update' });
+  }
+
+  values.push(req.params.id);
+  db.prepare(`UPDATE workers SET ${updates.join(', ')} WHERE id = ?`).run(...values);
+
+  const updated = db.prepare('SELECT * FROM workers WHERE id = ?').get(req.params.id);
+  res.json(updated);
+});
+
+/**
  * GET /worker
  * List workers (optionally filtered by farm_id).
  */
