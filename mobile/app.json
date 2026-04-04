@@ -18,7 +18,11 @@
       "adaptiveIcon": {
         "backgroundColor": "#2C1810"
       },
-      "package": "com.chainbytes.coffee"
+      "package": "com.chainbytes.coffee",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "plugins": [
       "expo-font",
@@ -28,6 +32,12 @@
           "cameraPermission": "Chainbytes Coffee necesita acceso a la cámara para escanear códigos QR."
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "1b9355ac-f3c9-46cf-975c-6aa7accc750f"
+      }
+    },
+    "owner": "ericnakamoto"
   }
 }

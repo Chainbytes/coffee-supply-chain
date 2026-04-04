@@ -1,0 +1,23 @@
+{
+  "cli": {
+    "version": ">= 18.0.0",
+    "appVersionSource": "local"
+  },
+  "build": {
+    "preview": {
+      "distribution": "internal",
+      "node": "20.18.0",
+      "ios": {
+        "simulator": false,
+        "image": "latest"
+      },
+      "env": {
+        "EXPO_PUBLIC_BACKEND_URL": "http://134.122.8.237:3002"
+      }
+    },
+    "production": {
+      "autoIncrement": true,
+      "node": "20.18.0"
+    }
+  }
+}
