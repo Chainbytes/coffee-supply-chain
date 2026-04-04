@@ -463,3 +463,50 @@ describe('Worker auto-registration on check-in', () => {
     assert.equal(res.body.name, 'Worker abcdef');
   });
 });
+
+// ------------------------------------------------------------------ Feature 4: Farm Analytics
+
+describe('Farm Analytics', () => {
+  test('GET /farm/:id/analytics returns counts and recent activity', async () => {
+    const res = await get(`/farm/${farmId}/analytics`);
+    assert.equal(res.status, 200);
+    assert.equal(res.body.farm_id, farmId);
+    assert.equal(typeof res.body.farm_name, 'string');
+    assert.equal(typeof res.body.worker_count, 'number');
+    assert.equal(typeof res.body.shift_count, 'number');
+    assert.equal(typeof res.body.lot_count, 'number');
+    assert.ok(res.body.worker_count >= 1, 'should have at least 1 worker');
+    assert.ok(res.body.shift_count >= 1, 'should have at least 1 shift');
+    assert.ok(res.body.lot_count >= 1, 'should have at least 1 lot');
+    assert.ok(Array.isArray(res.body.recent_shifts));
+    assert.ok(Array.isArray(res.body.recent_checkins));
+    assert.ok(res.body.recent_shifts.length >= 1);
+    assert.ok(res.body.recent_checkins.length >= 1);
+  });
+
+  test('GET /farm/:id/analytics returns 404 for unknown farm', async () => {
+    const res = await get('/farm/nonexistent-farm/analytics');
+    assert.equal(res.status, 404);
+  });
+
+  test('recent_checkins include worker_name', async () => {
+    const res = await get(`/farm/${farmId}/analytics`);
+    assert.equal(res.status, 200);
+    const checkin = res.body.recent_checkins[0];
+    assert.ok(checkin.worker_name, 'checkin should include worker_name');
+    assert.ok(checkin.worker_id, 'checkin should include worker_id');
+    assert.ok(checkin.checked_in_at, 'checkin should include checked_in_at');
+  });
+
+  test('recent_shifts are ordered by most recent first', async () => {
+    const res = await get(`/farm/${farmId}/analytics`);
+    assert.equal(res.status, 200);
+    const shifts = res.body.recent_shifts;
+    if (shifts.length >= 2) {
+      assert.ok(
+        shifts[0].created_at >= shifts[1].created_at,
+        'shifts should be ordered newest first'
+      );
+    }
+  });
+});
