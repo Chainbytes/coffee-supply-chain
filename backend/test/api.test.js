@@ -64,6 +64,7 @@ function request(method, urlPath, body) {
 
 const get = (p) => request('GET', p);
 const post = (p, b) => request('POST', p, b);
+const put = (p, b) => request('PUT', p, b);
 
 // ------------------------------------------------------------------ lifecycle
 
@@ -183,6 +184,55 @@ describe('Worker', () => {
     assert.equal(res.status, 200);
     assert.ok(Array.isArray(res.body.payments));
     assert.equal(res.body.payments.length, 0);
+  });
+});
+
+describe('Worker update (PUT /worker/:id)', () => {
+  test('PUT /worker/:id updates name and phone', async () => {
+    const res = await put(`/worker/${workerId}`, {
+      name: 'Updated Worker',
+      phone: '+503-1111-2222',
+    });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.name, 'Updated Worker');
+    assert.equal(res.body.phone, '+503-1111-2222');
+    assert.equal(res.body.id, workerId);
+  });
+
+  test('PUT /worker/:id updates photo_url', async () => {
+    const res = await put(`/worker/${workerId}`, {
+      photo_url: 'https://example.com/photo.jpg',
+    });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.photo_url, 'https://example.com/photo.jpg');
+  });
+
+  test('PUT /worker/:id updates role', async () => {
+    const res = await put(`/worker/${workerId}`, { role: 'foreman' });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.role, 'foreman');
+    // Restore original role
+    await put(`/worker/${workerId}`, { role: 'worker' });
+  });
+
+  test('PUT /worker/:id returns 400 for invalid role', async () => {
+    const res = await put(`/worker/${workerId}`, { role: 'ceo' });
+    assert.equal(res.status, 400);
+  });
+
+  test('PUT /worker/:id returns 400 for empty name', async () => {
+    const res = await put(`/worker/${workerId}`, { name: '' });
+    assert.equal(res.status, 400);
+  });
+
+  test('PUT /worker/:id returns 400 with no valid fields', async () => {
+    const res = await put(`/worker/${workerId}`, { favorite_color: 'blue' });
+    assert.equal(res.status, 400);
+  });
+
+  test('PUT /worker/:id returns 404 for unknown worker', async () => {
+    const res = await put('/worker/nonexistent-id', { name: 'Ghost' });
+    assert.equal(res.status, 404);
   });
 });
 
