@@ -10,9 +10,13 @@
     "splash": {
       "backgroundColor": "#2C1810"
     },
+    "newArchEnabled": false,
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.chainbytes.coffee"
+      "bundleIdentifier": "com.chainbytes.coffee",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {
