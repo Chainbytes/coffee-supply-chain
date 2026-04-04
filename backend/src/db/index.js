@@ -1,14 +1,13 @@
 'use strict';
 
 /**
- * SQLite database layer — uses the built-in node:sqlite module (Node >= 22.5).
- * No native compilation required.
+ * SQLite database layer — uses better-sqlite3 (compatible with Node 20+).
  *
- * node:sqlite API: https://nodejs.org/api/sqlite.html
+ * better-sqlite3 API: https://github.com/WiseLibs/better-sqlite3/blob/master/docs/api.md
  */
 
 const path = require('path');
-const { DatabaseSync } = require('node:sqlite');
+const Database = require('better-sqlite3');
 const schema = require('./schema');
 
 const DB_PATH = process.env.DB_PATH
@@ -23,7 +22,7 @@ let _db = null;
 function getDb() {
   if (_db) return _db;
 
-  _db = new DatabaseSync(DB_PATH);
+  _db = new Database(DB_PATH);
 
   // WAL mode for better concurrent reads; enforce foreign keys
   _db.exec('PRAGMA journal_mode = WAL');
