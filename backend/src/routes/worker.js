@@ -50,6 +50,47 @@ router.get('/:id', (req, res) => {
 });
 
 /**
+ * GET /worker/:id/today
+ * Returns the worker's check-in status for today's date.
+ *
+ * Response (checked in):
+ *   { checked_in: true, shift_id, checked_in_at, shift_status }
+ *
+ * Response (not checked in):
+ *   { checked_in: false }
+ */
+router.get('/:id/today', (req, res) => {
+  const db = getDb();
+  const worker = db.prepare('SELECT id FROM workers WHERE id = ?').get(req.params.id);
+  if (!worker) return res.status(404).json({ error: 'Worker not found' });
+
+  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+
+  const row = db.prepare(`
+    SELECT c.shift_id,
+           c.checked_in_at,
+           s.status AS shift_status
+    FROM checkins c
+    JOIN shifts   s ON s.id = c.shift_id
+    WHERE c.worker_id = ?
+      AND s.date = ?
+    ORDER BY c.checked_in_at DESC
+    LIMIT 1
+  `).get(req.params.id, today);
+
+  if (!row) {
+    return res.json({ checked_in: false });
+  }
+
+  res.json({
+    checked_in:    true,
+    shift_id:      row.shift_id,
+    checked_in_at: row.checked_in_at,
+    shift_status:  row.shift_status,
+  });
+});
+
+/**
  * GET /worker/:id/payments
  * Payment history for a worker.
  */

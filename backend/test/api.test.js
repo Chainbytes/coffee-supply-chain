@@ -338,3 +338,128 @@ describe('Payroll', () => {
     assert.equal(res.status, 400);
   });
 });
+
+// ------------------------------------------------------------------ Feature 1: BTC Price
+
+describe('BTC Price', () => {
+  test('GET /btc-price returns usd and timestamp', async () => {
+    const res = await get('/btc-price');
+    // CoinGecko may be unavailable in CI; accept 200 or 502
+    if (res.status === 200) {
+      assert.equal(typeof res.body.usd, 'number');
+      assert.ok(res.body.usd > 0, 'price should be positive');
+      assert.ok(typeof res.body.timestamp === 'string', 'should have timestamp');
+      // Timestamp should be a valid ISO string
+      assert.ok(!isNaN(Date.parse(res.body.timestamp)), 'timestamp must be ISO-8601');
+    } else {
+      assert.equal(res.status, 502);
+      assert.ok(res.body.error);
+    }
+  });
+
+  test('POST /usd-to-sats converts amount when price available', async () => {
+    const priceRes = await get('/btc-price');
+    if (priceRes.status !== 200) return; // skip if CoinGecko down
+
+    const res = await post('/usd-to-sats', { usd: 10 });
+    assert.equal(res.status, 200);
+    assert.equal(typeof res.body.sats, 'number');
+    assert.ok(res.body.sats > 0);
+    assert.equal(typeof res.body.btc_price, 'number');
+    // Rough sanity: 10 USD should be more than 100 sats at any real BTC price
+    assert.ok(res.body.sats > 100);
+  });
+
+  test('POST /usd-to-sats returns 400 when usd missing', async () => {
+    const res = await post('/usd-to-sats', {});
+    assert.equal(res.status, 400);
+    assert.ok(res.body.error);
+  });
+
+  test('POST /usd-to-sats returns 400 for negative amount', async () => {
+    const res = await post('/usd-to-sats', { usd: -5 });
+    assert.equal(res.status, 400);
+    assert.ok(res.body.error);
+  });
+
+  test('POST /usd-to-sats returns 400 for non-numeric value', async () => {
+    const res = await post('/usd-to-sats', { usd: 'lots' });
+    assert.equal(res.status, 400);
+    assert.ok(res.body.error);
+  });
+});
+
+// ------------------------------------------------------------------ Feature 2: Worker today status
+
+describe('Worker today status', () => {
+  // farmId, foremanId, workerId and shiftId are populated by earlier test groups
+  let todayShiftId;
+  let todayWorkerId;
+
+  test('GET /worker/:id/today returns not checked in before check-in', async () => {
+    // Create a fresh worker and shift for today
+    const shiftRes = await post('/shift', { farm_id: farmId, foreman_id: foremanId });
+    assert.equal(shiftRes.status, 201);
+    todayShiftId = shiftRes.body.id;
+
+    const workerRes = await post('/worker', { farm_id: farmId, name: 'Today Test Worker' });
+    assert.equal(workerRes.status, 201);
+    todayWorkerId = workerRes.body.id;
+
+    const res = await get(`/worker/${todayWorkerId}/today`);
+    assert.equal(res.status, 200);
+    assert.equal(res.body.checked_in, false);
+  });
+
+  test('GET /worker/:id/today returns checked_in true after check-in', async () => {
+    const checkinRes = await post(`/shift/${todayShiftId}/checkin`, { worker_id: todayWorkerId });
+    assert.equal(checkinRes.status, 201);
+
+    const res = await get(`/worker/${todayWorkerId}/today`);
+    assert.equal(res.status, 200);
+    assert.equal(res.body.checked_in, true);
+    assert.equal(res.body.shift_id, todayShiftId);
+    assert.ok(typeof res.body.checked_in_at === 'string');
+    assert.equal(res.body.shift_status, 'open');
+  });
+
+  test('GET /worker/:id/today returns 404 for unknown worker', async () => {
+    const res = await get('/worker/nonexistent-worker-id/today');
+    assert.equal(res.status, 404);
+  });
+});
+
+// ------------------------------------------------------------------ Feature 3: Auto-registration on check-in
+
+describe('Worker auto-registration on check-in', () => {
+  test('POST /shift/:id/checkin auto-creates unknown worker', async () => {
+    // Create a fresh open shift
+    const shiftRes = await post('/shift', { farm_id: farmId, foreman_id: foremanId });
+    assert.equal(shiftRes.status, 201);
+    const newShiftId = shiftRes.body.id;
+
+    // Use a worker_id that does not exist in the DB
+    const ghostWorkerId = 'abcdef-ghost-worker-00000000-0000';
+
+    const checkinRes = await post(`/shift/${newShiftId}/checkin`, {
+      worker_id: ghostWorkerId,
+      signature: 'auto_reg_test',
+    });
+    assert.equal(checkinRes.status, 201, 'should succeed via auto-registration');
+    assert.ok(checkinRes.body.checkin.id);
+    assert.equal(checkinRes.body.worker.id, ghostWorkerId);
+    // Auto-generated name uses first 6 chars of the id
+    assert.ok(
+      checkinRes.body.worker.name.startsWith('Worker '),
+      `name should start with "Worker ", got: ${checkinRes.body.worker.name}`
+    );
+  });
+
+  test('auto-registered worker is retrievable via GET /worker/:id', async () => {
+    const ghostWorkerId = 'abcdef-ghost-worker-00000000-0000';
+    const res = await get(`/worker/${ghostWorkerId}`);
+    assert.equal(res.status, 200);
+    assert.equal(res.body.id, ghostWorkerId);
+    assert.equal(res.body.name, 'Worker abcdef');
+  });
+});

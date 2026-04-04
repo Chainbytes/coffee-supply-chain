@@ -75,8 +75,20 @@ router.post('/:id/checkin', (req, res) => {
   if (!shift) return res.status(404).json({ error: 'Shift not found' });
   if (shift.status === 'closed') return res.status(409).json({ error: 'Shift is closed' });
 
-  const worker = db.prepare('SELECT * FROM workers WHERE id = ?').get(worker_id);
-  if (!worker) return res.status(404).json({ error: 'Worker not found' });
+  let worker = db.prepare('SELECT * FROM workers WHERE id = ?').get(worker_id);
+
+  // Auto-register unknown worker so mobile self-check-in flows work without
+  // a prior registration step.
+  if (!worker) {
+    const autoName = `Worker ${worker_id.slice(0, 6)}`;
+    const liqAddr = 'liq1q' + worker_id.replace(/-/g, '').slice(0, 38);
+    db.prepare(`
+      INSERT INTO workers (id, farm_id, name, role, liquid_address)
+      VALUES (?, ?, ?, 'worker', ?)
+    `).run(worker_id, shift.farm_id, autoName, liqAddr);
+    worker = db.prepare('SELECT * FROM workers WHERE id = ?').get(worker_id);
+    console.log(`[checkin] auto-registered worker ${worker_id} as "${autoName}" on farm ${shift.farm_id}`);
+  }
 
   // Check for duplicate
   const existing = db.prepare(
