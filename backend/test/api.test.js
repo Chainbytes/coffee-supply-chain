@@ -287,6 +287,21 @@ describe('Lot', () => {
     assert.ok(Array.isArray(res.body.transfers));
     assert.ok(res.body.transfers.length >= 2); // harvest + wet_mill
   });
+
+  test('GET /lot/:id/qr returns printable SVG', async () => {
+    const res = await request('GET', `/lot/${lotId}/qr`);
+    assert.equal(res.status, 200);
+    // Body is raw SVG string (not JSON-parseable)
+    assert.ok(typeof res.body === 'string', 'should return SVG string');
+    assert.ok(res.body.includes('<svg'), 'should contain SVG element');
+    assert.ok(res.body.includes('Scan for full provenance'), 'should have label text');
+    assert.ok(res.body.includes('Test Farm'), 'should include farm name');
+  });
+
+  test('GET /lot/:id/qr returns 404 for unknown lot', async () => {
+    const res = await get('/lot/nonexistent-lot-id/qr');
+    assert.equal(res.status, 404);
+  });
 });
 
 describe('Provenance', () => {

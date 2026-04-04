@@ -156,6 +156,38 @@ router.get('/:id/provenance', (req, res) => {
 });
 
 /**
+ * GET /lot/:id/qr
+ * Printable QR code (SVG) linking to the provenance page.
+ */
+router.get('/:id/qr', async (req, res) => {
+  const db = getDb();
+  const lot = db.prepare('SELECT * FROM lots WHERE id = ?').get(req.params.id);
+  if (!lot) return res.status(404).json({ error: 'Lot not found' });
+
+  const farm = db.prepare('SELECT name FROM farms WHERE id = ?').get(lot.farm_id);
+  const provenanceUrl = `${APP_BASE_URL}/provenance/${lot.id}`;
+
+  const qrSvg = await QRCode.toString(provenanceUrl, { type: 'svg', width: 300 });
+
+  const label = farm ? farm.name : 'Unknown Farm';
+  const shortId = lot.id.slice(0, 8);
+
+  const printableSvg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="380" viewBox="0 0 320 380">
+  <rect width="320" height="380" fill="white" rx="8"/>
+  <g transform="translate(10,10)">
+    ${qrSvg.replace(/<\?xml[^?]*\?>/, '').replace(/<svg[^>]*>/, '').replace(/<\/svg>/, '')}
+  </g>
+  <text x="160" y="335" text-anchor="middle" font-family="sans-serif" font-size="14" font-weight="bold">${label}</text>
+  <text x="160" y="355" text-anchor="middle" font-family="monospace" font-size="11" fill="#666">Lot ${shortId}</text>
+  <text x="160" y="372" text-anchor="middle" font-family="sans-serif" font-size="9" fill="#999">Scan for full provenance</text>
+</svg>`;
+
+  res.set('Content-Type', 'image/svg+xml');
+  res.send(printableSvg);
+});
+
+/**
  * GET /lot/:id
  * Get lot details.
  */
