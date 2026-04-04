@@ -280,6 +280,27 @@ describe('Lot', () => {
     assert.equal(res.body.transfer.entity_type, 'wet_mill');
   });
 
+  test('GET /lot/:id/qr returns printable SVG QR code', async () => {
+    const res = await get(`/lot/${lotId}/qr`);
+    assert.equal(res.status, 200);
+    // Response is SVG string (not JSON)
+    assert.ok(typeof res.body === 'string', 'should return SVG string');
+    assert.ok(res.body.includes('<svg'), 'should contain SVG element');
+    assert.ok(res.body.includes('Grade'), 'SVG should contain lot grade label');
+  });
+
+  test('GET /lot/:id/qr?format=png returns data URL', async () => {
+    const res = await get(`/lot/${lotId}/qr?format=png`);
+    assert.equal(res.status, 200);
+    assert.ok(res.body.qr_image.startsWith('data:image/png'), 'should be PNG data URL');
+    assert.ok(res.body.provenance_url.includes(lotId));
+  });
+
+  test('GET /lot/nonexistent/qr returns 404', async () => {
+    const res = await get('/lot/nonexistent-id/qr');
+    assert.equal(res.status, 404);
+  });
+
   test('GET /lot/:id returns lot with transfers', async () => {
     const res = await get(`/lot/${lotId}`);
     assert.equal(res.status, 200);

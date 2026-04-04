@@ -148,6 +148,50 @@ router.post('/:id/transfer', async (req, res) => {
 });
 
 /**
+ * GET /lot/:id/qr
+ * Printable QR code linking to the provenance page for this lot.
+ * Returns SVG by default, or PNG data URL with ?format=png.
+ */
+router.get('/:id/qr', async (req, res) => {
+  const db = getDb();
+  const lot = db.prepare('SELECT * FROM lots WHERE id = ?').get(req.params.id);
+  if (!lot) return res.status(404).json({ error: 'Lot not found' });
+
+  const farm = db.prepare('SELECT name FROM farms WHERE id = ?').get(lot.farm_id);
+  const provenanceUrl = `${APP_BASE_URL}/provenance/${lot.id}`;
+  const format = req.query.format || 'svg';
+
+  if (format === 'png') {
+    const dataUrl = await QRCode.toDataURL(provenanceUrl, { width: 400, margin: 2 });
+    return res.json({ qr_image: dataUrl, provenance_url: provenanceUrl });
+  }
+
+  // SVG — printable, scalable
+  const svgQr = await QRCode.toString(provenanceUrl, { type: 'svg', width: 300, margin: 2 });
+
+  // Wrap in a printable label with farm name and lot grade
+  const label = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="350" height="400" viewBox="0 0 350 400">
+  <rect width="350" height="400" fill="white" rx="8"/>
+  <text x="175" y="30" text-anchor="middle" font-family="Arial,sans-serif" font-size="16" font-weight="bold" fill="#333">
+    ${farm ? farm.name : 'Unknown Farm'}
+  </text>
+  <text x="175" y="50" text-anchor="middle" font-family="Arial,sans-serif" font-size="12" fill="#666">
+    Grade ${lot.grade} · ${lot.weight_kg} kg
+  </text>
+  <g transform="translate(25, 60)">
+    ${svgQr}
+  </g>
+  <text x="175" y="385" text-anchor="middle" font-family="monospace" font-size="9" fill="#999">
+    ${lot.id.slice(0, 8)}
+  </text>
+</svg>`;
+
+  res.set('Content-Type', 'image/svg+xml');
+  res.send(label);
+});
+
+/**
  * GET /lot/:id/provenance
  * Full chain of custody for a lot (API endpoint).
  */

@@ -119,6 +119,7 @@ if (require.main === module) {
     console.log('    POST   /shift/:id/close');
     console.log('    POST   /lot');
     console.log('    POST   /lot/:id/transfer');
+    console.log('    GET    /lot/:id/qr');
     console.log('    GET    /lot/:id/provenance');
     console.log('    POST   /payroll');
     console.log('    GET    /worker/:id/payments');
