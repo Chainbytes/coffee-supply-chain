@@ -380,6 +380,13 @@ describe('Farm analytics', () => {
       );
     }
   });
+
+  test('analytics limits recent_shifts to 5 and recent_checkins to 10', async () => {
+    const res = await get(`/farm/${farmId}/analytics`);
+    assert.equal(res.status, 200);
+    assert.ok(res.body.recent_shifts.length <= 5, 'recent_shifts capped at 5');
+    assert.ok(res.body.recent_checkins.length <= 10, 'recent_checkins capped at 10');
+  });
 });
 
 // ------------------------------------------------------------------ Feature 1: BTC Price
