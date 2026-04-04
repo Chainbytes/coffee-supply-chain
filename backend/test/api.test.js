@@ -339,6 +339,55 @@ describe('Payroll', () => {
   });
 });
 
+// ------------------------------------------------------------------ Feature: Payroll CSV Export
+
+describe('Payroll CSV Export', () => {
+  test('GET /farm/:id/export returns CSV with payment data', async () => {
+    const res = await get(`/farm/${farmId}/export`);
+    assert.equal(res.status, 200);
+    assert.equal(typeof res.body, 'string');
+    // Should have header row
+    assert.ok(res.body.startsWith('worker_name,'), 'CSV should start with header');
+    // Should contain our test worker's data
+    assert.ok(res.body.includes('Test Worker'), 'CSV should include worker name');
+    assert.ok(res.body.includes('paid'), 'CSV should include payment status');
+  });
+
+  test('GET /farm/:id/export?shift_id= filters to one shift', async () => {
+    const res = await get(`/farm/${farmId}/export?shift_id=${shiftId}`);
+    assert.equal(res.status, 200);
+    assert.equal(typeof res.body, 'string');
+    const lines = res.body.trim().split('\n');
+    // Header + at least 1 data row
+    assert.ok(lines.length >= 2, 'should have header + data rows');
+  });
+
+  test('GET /farm/:id/export returns 404 for unknown farm', async () => {
+    const res = await get('/farm/nonexistent-id/export');
+    assert.equal(res.status, 404);
+  });
+
+  test('GET /farm/:id/export?format=pdf returns 400', async () => {
+    const res = await get(`/farm/${farmId}/export?format=pdf`);
+    assert.equal(res.status, 400);
+  });
+
+  test('GET /farm/:id/export returns empty CSV with header when no data', async () => {
+    // Create a farm with no shifts/checkins
+    const newFarm = await post('/farm', {
+      name: 'Empty Farm',
+      location: 'Nowhere',
+      altitude_m: 500,
+      owner_name: 'Ghost',
+    });
+    const res = await get(`/farm/${newFarm.body.id}/export`);
+    assert.equal(res.status, 200);
+    const lines = res.body.trim().split('\n');
+    assert.equal(lines.length, 1, 'should only have header row');
+    assert.ok(lines[0].startsWith('worker_name,'));
+  });
+});
+
 // ------------------------------------------------------------------ Feature 1: BTC Price
 
 describe('BTC Price', () => {
