@@ -1,0 +1,33 @@
+{
+  "expo": {
+    "name": "Chainbytes Coffee",
+    "slug": "chainbytes-coffee",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "scheme": "chainbytes-coffee",
+    "splash": {
+      "backgroundColor": "#2C1810"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.chainbytes.coffee"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#2C1810"
+      },
+      "package": "com.chainbytes.coffee"
+    },
+    "plugins": [
+      "expo-font",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Chainbytes Coffee necesita acceso a la cámara para escanear códigos QR."
+        }
+      ]
+    ]
+  }
+}
