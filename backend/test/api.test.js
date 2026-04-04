@@ -387,6 +387,54 @@ describe('Payroll', () => {
     const res = await post('/payroll', { amount_sats: 1000 });
     assert.equal(res.status, 400);
   });
+
+  test('POST /payroll returns 404 for nonexistent shift', async () => {
+    const res = await post('/payroll', { shift_id: 'nonexistent-shift-id' });
+    assert.equal(res.status, 404);
+    assert.ok(res.body.error);
+  });
+
+  test('POST /payroll returns 409 for open (not closed) shift', async () => {
+    // Create a fresh shift that stays open
+    const shiftRes = await post('/shift', { farm_id: farmId, foreman_id: foremanId });
+    assert.equal(shiftRes.status, 201);
+    const openShiftId = shiftRes.body.id;
+
+    const res = await post('/payroll', { shift_id: openShiftId });
+    assert.equal(res.status, 409);
+    assert.match(res.body.error, /closed/i);
+  });
+
+  test('POST /payroll with worker_ids pays only specified workers', async () => {
+    // Create a second worker
+    const w2Res = await post('/worker', {
+      farm_id: farmId,
+      name: 'Payroll Filter Worker',
+      role: 'picker',
+    });
+    assert.equal(w2Res.status, 201);
+    const worker2Id = w2Res.body.id;
+
+    // Create shift, check in both workers, close it
+    const shiftRes = await post('/shift', { farm_id: farmId, foreman_id: foremanId });
+    assert.equal(shiftRes.status, 201);
+    const sid = shiftRes.body.id;
+
+    await post(`/shift/${sid}/checkin`, { worker_id: workerId });
+    await post(`/shift/${sid}/checkin`, { worker_id: worker2Id });
+    await post(`/shift/${sid}/close`, {});
+
+    // Pay only worker2
+    const res = await post('/payroll', {
+      shift_id: sid,
+      amount_sats: 3000,
+      worker_ids: [worker2Id],
+    });
+    assert.equal(res.status, 201);
+    assert.equal(res.body.paid_count, 1);
+    assert.equal(res.body.payments[0].worker_id, worker2Id);
+    assert.equal(res.body.payments[0].amount_sats, 3000);
+  });
 });
 
 // ------------------------------------------------------------------ Farm analytics
