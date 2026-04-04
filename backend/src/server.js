@@ -14,6 +14,7 @@ const lotRoutes = require('./routes/lot');
 const payrollRoutes = require('./routes/payroll');
 const provenanceRoutes = require('./routes/provenance');
 const priceRoutes = require('./routes/price');
+const { startShiftCleanup } = require('./cron/shift-cleanup');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -106,6 +107,7 @@ app.use((err, req, res, next) => {
 
 // ------------------------------------------------------------------ start
 if (require.main === module) {
+  startShiftCleanup();
   app.listen(PORT, () => {
     console.log('');
     console.log('  Chainbytes Coffee Supply Chain — Backend API');
