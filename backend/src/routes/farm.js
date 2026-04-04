@@ -54,4 +54,52 @@ router.get('/:id', (req, res) => {
   res.json({ ...farm, worker_count: workerCount });
 });
 
+/**
+ * GET /farm/:id/export
+ * Export payroll CSV for a farm.
+ * Query params:
+ *   from — optional start date (YYYY-MM-DD)
+ *   to   — optional end date (YYYY-MM-DD)
+ */
+router.get('/:id/export', (req, res) => {
+  const db = getDb();
+  const farm = db.prepare('SELECT * FROM farms WHERE id = ?').get(req.params.id);
+  if (!farm) return res.status(404).json({ error: 'Farm not found' });
+
+  const { from, to } = req.query;
+
+  let sql = `
+    SELECT w.name AS worker_name, s.date AS shift_date,
+           p.amount_sats, p.status, p.paid_at
+    FROM payments p
+    JOIN workers w ON w.id = p.worker_id
+    JOIN shifts s ON s.id = p.shift_id
+    WHERE s.farm_id = ?
+  `;
+  const params = [req.params.id];
+
+  if (from) {
+    sql += ' AND s.date >= ?';
+    params.push(from);
+  }
+  if (to) {
+    sql += ' AND s.date <= ?';
+    params.push(to);
+  }
+
+  sql += ' ORDER BY s.date, w.name';
+
+  const rows = db.prepare(sql).all(...params);
+
+  const header = 'worker_name,shift_date,amount_sats,status,paid_at';
+  const csvRows = rows.map(r =>
+    [r.worker_name, r.shift_date, r.amount_sats, r.status, r.paid_at].join(',')
+  );
+  const csv = [header, ...csvRows].join('\n');
+
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', `attachment; filename="${farm.name}-payroll.csv"`);
+  res.send(csv);
+});
+
 module.exports = router;

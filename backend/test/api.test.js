@@ -389,6 +389,58 @@ describe('BTC Price', () => {
   });
 });
 
+// ------------------------------------------------------------------ Feature: Payroll CSV export
+
+describe('Payroll CSV export', () => {
+  test('GET /farm/:id/export returns CSV with header', async () => {
+    const res = await get(`/farm/${farmId}/export`);
+    assert.equal(res.status, 200);
+    const lines = res.body.split('\n');
+    assert.equal(lines[0], 'worker_name,shift_date,amount_sats,status,paid_at');
+    // Payroll was processed in earlier tests — should have at least one data row
+    assert.ok(lines.length >= 2, 'should have header + at least 1 data row');
+  });
+
+  test('GET /farm/:id/export includes correct payment data', async () => {
+    const res = await get(`/farm/${farmId}/export`);
+    const lines = res.body.split('\n');
+    const dataLines = lines.slice(1).filter(l => l.length > 0);
+    // Each row should have 5 comma-separated fields
+    for (const line of dataLines) {
+      const fields = line.split(',');
+      assert.equal(fields.length, 5, `expected 5 fields, got: ${line}`);
+      assert.ok(Number(fields[2]) > 0, 'amount_sats should be positive');
+    }
+  });
+
+  test('GET /farm/:id/export with date filter returns filtered results', async () => {
+    // Use a far-future date range that won't match any shifts
+    const res = await get(`/farm/${farmId}/export?from=2099-01-01&to=2099-12-31`);
+    assert.equal(res.status, 200);
+    const lines = res.body.split('\n').filter(l => l.length > 0);
+    // Should only have the header row — no data matches the future date
+    assert.equal(lines.length, 1, 'no data rows for far-future date filter');
+  });
+
+  test('GET /farm/:id/export returns 404 for unknown farm', async () => {
+    const res = await get('/farm/nonexistent-farm-id/export');
+    assert.equal(res.status, 404);
+  });
+
+  test('GET /farm/:id/export returns empty CSV for farm with no payments', async () => {
+    // Create a fresh farm with no shifts/payments
+    const farmRes = await post('/farm', {
+      name: 'Empty Farm', location: 'Nowhere', altitude_m: 100, owner_name: 'Nobody'
+    });
+    assert.equal(farmRes.status, 201);
+    const res = await get(`/farm/${farmRes.body.id}/export`);
+    assert.equal(res.status, 200);
+    const lines = res.body.split('\n').filter(l => l.length > 0);
+    assert.equal(lines.length, 1, 'only header row for farm with no payments');
+    assert.equal(lines[0], 'worker_name,shift_date,amount_sats,status,paid_at');
+  });
+});
+
 // ------------------------------------------------------------------ Feature 2: Worker today status
 
 describe('Worker today status', () => {
