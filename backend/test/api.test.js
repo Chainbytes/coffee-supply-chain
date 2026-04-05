@@ -287,6 +287,52 @@ describe('Shift', () => {
     const res = await post(`/shift/${shiftId}/close`, {});
     assert.equal(res.status, 409);
   });
+
+  test('POST /shift returns 404 for nonexistent farm', async () => {
+    const res = await post('/shift', { farm_id: 'no-such-farm', foreman_id: foremanId });
+    assert.equal(res.status, 404);
+    assert.match(res.body.error, /Farm not found/);
+  });
+
+  test('POST /shift returns 404 for non-foreman worker', async () => {
+    const res = await post('/shift', { farm_id: farmId, foreman_id: workerId });
+    assert.equal(res.status, 404);
+    assert.match(res.body.error, /Foreman not found/);
+  });
+
+  test('POST /shift/:id/close returns 404 for nonexistent shift', async () => {
+    const res = await post('/shift/no-such-shift/close', {});
+    assert.equal(res.status, 404);
+    assert.match(res.body.error, /Shift not found/);
+  });
+
+  test('POST /shift/:id/close returns 400 with no checkins', async () => {
+    // Create a fresh shift with no workers checked in
+    const shiftRes = await post('/shift', { farm_id: farmId, foreman_id: foremanId });
+    assert.equal(shiftRes.status, 201);
+    const emptyShiftId = shiftRes.body.id;
+    const res = await post(`/shift/${emptyShiftId}/close`, {});
+    assert.equal(res.status, 400);
+    assert.match(res.body.error, /No workers/);
+  });
+
+  test('GET /shift/:id returns 404 for nonexistent shift', async () => {
+    const res = await get('/shift/no-such-shift');
+    assert.equal(res.status, 404);
+    assert.match(res.body.error, /Shift not found/);
+  });
+
+  test('POST /shift/:id/checkin returns 404 for nonexistent shift', async () => {
+    const res = await post('/shift/no-such-shift/checkin', { worker_id: workerId });
+    assert.equal(res.status, 404);
+    assert.match(res.body.error, /Shift not found/);
+  });
+
+  test('POST /shift/:id/checkin returns 409 on closed shift', async () => {
+    const res = await post(`/shift/${shiftId}/checkin`, { worker_id: foremanId });
+    assert.equal(res.status, 409);
+    assert.match(res.body.error, /closed/i);
+  });
 });
 
 describe('Lot', () => {
@@ -386,6 +432,46 @@ describe('Payroll', () => {
   test('POST /payroll returns 400 when shift_id missing', async () => {
     const res = await post('/payroll', { amount_sats: 1000 });
     assert.equal(res.status, 400);
+  });
+
+  test('POST /payroll returns 404 for nonexistent shift', async () => {
+    const res = await post('/payroll', { shift_id: 'fake-shift-id' });
+    assert.equal(res.status, 404);
+    assert.ok(res.body.error);
+  });
+
+  test('POST /payroll returns 409 for open (not closed) shift', async () => {
+    const shiftRes = await post('/shift', { farm_id: farmId, foreman_id: foremanId });
+    assert.equal(shiftRes.status, 201);
+    const openShiftId = shiftRes.body.id;
+
+    const res = await post('/payroll', { shift_id: openShiftId });
+    assert.equal(res.status, 409);
+    assert.ok(res.body.error.includes('closed'));
+  });
+
+  test('POST /payroll with worker_ids pays only specified workers', async () => {
+    const worker2Res = await post('/worker', { farm_id: farmId, name: 'Payroll Test Worker 2' });
+    assert.equal(worker2Res.status, 201);
+    const worker2Id = worker2Res.body.id;
+
+    const shiftRes = await post('/shift', { farm_id: farmId, foreman_id: foremanId });
+    assert.equal(shiftRes.status, 201);
+    const pShiftId = shiftRes.body.id;
+
+    await post(`/shift/${pShiftId}/checkin`, { worker_id: workerId });
+    await post(`/shift/${pShiftId}/checkin`, { worker_id: worker2Id });
+    await post(`/shift/${pShiftId}/close`, {});
+
+    const res = await post('/payroll', {
+      shift_id: pShiftId,
+      amount_sats: 3000,
+      worker_ids: [worker2Id],
+    });
+    assert.equal(res.status, 201);
+    assert.equal(res.body.paid_count, 1);
+    assert.equal(res.body.payments[0].worker_id, worker2Id);
+    assert.equal(res.body.total_sats_paid, 3000);
   });
 });
 
