@@ -1,0 +1,93 @@
+[
+  {
+    "id": 8,
+    "text": "Farm analytics endpoint — /farm/:id/analytics with worker count, shift count, lot count, recent activity. Old app had this, new one doesn't.",
+    "priority": "P0",
+    "addedBy": "U3LH6D7LN",
+    "addedAt": "2026-04-04"
+  },
+  {
+    "id": 9,
+    "text": "PUT /worker/:id — update worker name, phone, photo. Old app had name management endpoints. New app can create but not update.",
+    "priority": "P0",
+    "addedBy": "U3LH6D7LN",
+    "addedAt": "2026-04-04"
+  },
+  {
+    "id": 10,
+    "text": "Payroll CSV/PDF export — /farm/:id/export endpoint. Old app had this. Required for labor compliance.",
+    "priority": "P0",
+    "addedBy": "U3LH6D7LN",
+    "addedAt": "2026-04-04"
+  },
+  {
+    "id": 11,
+    "text": "Session auto-cleanup cron — old app deleted submitted sessions >24h. New app keeps everything. Add cleanup.",
+    "priority": "P1",
+    "addedBy": "U3LH6D7LN",
+    "addedAt": "2026-04-04"
+  },
+  {
+    "id": 12,
+    "text": "API authentication — role-based auth so workers can't close shifts and foremen can't run payroll.",
+    "priority": "P1",
+    "addedBy": "U3LH6D7LN",
+    "addedAt": "2026-04-04"
+  },
+  {
+    "id": 13,
+    "text": "100% unit test coverage by April 15th — backend (39 tests), mobile (0 tests). Need full coverage.",
+    "priority": "P1",
+    "addedBy": "U3LH6D7LN",
+    "addedAt": "2026-04-04"
+  },
+  {
+    "id": 14,
+    "text": "Web dashboard — farm owners need browser-based management UI. Dashboard, Employee, Payroll, Login pages. Biggest feature gap.",
+    "priority": "P2",
+    "addedBy": "U3LH6D7LN",
+    "addedAt": "2026-04-04"
+  },
+  {
+    "id": 15,
+    "text": "Push notifications — notify workers when foreman opens session, foremen when workers check in.",
+    "priority": "P2",
+    "addedBy": "U3LH6D7LN",
+    "addedAt": "2026-04-04"
+  },
+  {
+    "id": 16,
+    "text": "WebSocket real-time updates — Socket.io for check-in events. Add when web dashboard exists.",
+    "priority": "P2",
+    "addedBy": "U3LH6D7LN",
+    "addedAt": "2026-04-04"
+  },
+  {
+    "id": 17,
+    "text": "Liquid attestation for attendance proof — equivalent of old ERC-721 AttendanceNFTs on Liquid.",
+    "priority": "P3",
+    "addedBy": "U3LH6D7LN",
+    "addedAt": "2026-04-04"
+  },
+  {
+    "id": 18,
+    "text": "Real Liquid SDK integration (GDK) — replace simulated assets with actual Blockstream GDK calls.",
+    "priority": "P3",
+    "addedBy": "U3LH6D7LN",
+    "addedAt": "2026-04-04"
+  },
+  {
+    "id": 19,
+    "text": "Real Lightning node (LNbits mainnet or LDK) — demo mode can't actually pay workers.",
+    "priority": "P3",
+    "addedBy": "U3LH6D7LN",
+    "addedAt": "2026-04-04"
+  },
+  {
+    "id": 20,
+    "text": "Offline-first with local SQLite sync — critical for real farms.",
+    "priority": "P3",
+    "addedBy": "U3LH6D7LN",
+    "addedAt": "2026-04-04"
+  }
+]

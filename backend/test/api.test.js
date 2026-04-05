@@ -564,3 +564,224 @@ describe('Worker auto-registration on check-in', () => {
   });
 });
 
+// ------------------------------------------------------------------ Feature: Farm analytics (extended)
+
+describe('Farm analytics — extended fields', () => {
+  test('GET /farm/:id/analytics includes total_checkins and total_payments_sats', async () => {
+    const res = await get(`/farm/${farmId}/analytics`);
+    assert.equal(res.status, 200);
+    assert.equal(typeof res.body.total_checkins, 'number',
+      'total_checkins should be a number');
+    assert.ok(res.body.total_checkins >= 1,
+      'should have at least 1 check-in across all shifts');
+    assert.equal(typeof res.body.total_payments_sats, 'number',
+      'total_payments_sats should be a number');
+    assert.ok(res.body.total_payments_sats >= 0,
+      'total_payments_sats should be non-negative');
+  });
+
+  test('GET /farm/:id/analytics recent_shifts include worker_count per shift', async () => {
+    const res = await get(`/farm/${farmId}/analytics`);
+    assert.equal(res.status, 200);
+    assert.ok(Array.isArray(res.body.recent_shifts));
+    for (const shift of res.body.recent_shifts) {
+      assert.ok('worker_count' in shift,
+        `shift ${shift.id} is missing worker_count`);
+      assert.equal(typeof shift.worker_count, 'number',
+        'worker_count should be a number');
+    }
+  });
+
+  test('GET /farm/:id/analytics recent_shifts shape matches spec', async () => {
+    const res = await get(`/farm/${farmId}/analytics`);
+    assert.equal(res.status, 200);
+    const shift = res.body.recent_shifts[0];
+    assert.ok(shift.id,     'shift should have id');
+    assert.ok(shift.date,   'shift should have date');
+    assert.ok(shift.status, 'shift should have status');
+    assert.equal(typeof shift.worker_count, 'number');
+  });
+
+  test('GET /farm/:id/analytics total_payments_sats reflects paid payroll', async () => {
+    // Payroll for shiftId was processed in the Payroll describe block (5000 sats).
+    const res = await get(`/farm/${farmId}/analytics`);
+    assert.equal(res.status, 200);
+    assert.ok(res.body.total_payments_sats >= 5000,
+      'should include at least the 5000 sats paid earlier');
+  });
+});
+
+// ------------------------------------------------------------------ Feature: Worker update (PUT /worker/:id)
+
+describe('Worker update — spec fields', () => {
+  let specWorkerId;
+
+  test('setup: create a worker for update tests', async () => {
+    const res = await post('/worker', { farm_id: farmId, name: 'Spec Worker' });
+    assert.equal(res.status, 201);
+    specWorkerId = res.body.id;
+  });
+
+  test('PUT /worker/:id updates name only', async () => {
+    const res = await put(`/worker/${specWorkerId}`, { name: 'Renamed Worker' });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.name, 'Renamed Worker');
+  });
+
+  test('PUT /worker/:id updates phone only', async () => {
+    const res = await put(`/worker/${specWorkerId}`, { phone: '+1-800-COFFEE' });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.phone, '+1-800-COFFEE');
+    // Other fields should be unchanged
+    assert.equal(res.body.name, 'Renamed Worker');
+  });
+
+  test('PUT /worker/:id updates photo_url only', async () => {
+    const res = await put(`/worker/${specWorkerId}`, {
+      photo_url: 'https://cdn.example.com/avatar.png',
+    });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.photo_url, 'https://cdn.example.com/avatar.png');
+  });
+
+  test('PUT /worker/:id updates all three spec fields at once', async () => {
+    const res = await put(`/worker/${specWorkerId}`, {
+      name:      'Full Update Worker',
+      phone:     '+503-0000-1111',
+      photo_url: 'https://cdn.example.com/new.png',
+    });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.name,      'Full Update Worker');
+    assert.equal(res.body.phone,     '+503-0000-1111');
+    assert.equal(res.body.photo_url, 'https://cdn.example.com/new.png');
+    assert.equal(res.body.id, specWorkerId, 'response should include the worker id');
+  });
+
+  test('PUT /worker/:id returns 404 for unknown worker', async () => {
+    const res = await put('/worker/does-not-exist', { name: 'Ghost' });
+    assert.equal(res.status, 404);
+    assert.ok(res.body.error);
+  });
+
+  test('PUT /worker/:id returns 400 when no valid fields provided', async () => {
+    const res = await put(`/worker/${specWorkerId}`, { favourite_colour: 'teal' });
+    assert.equal(res.status, 400);
+    assert.ok(res.body.error);
+  });
+
+  test('PUT /worker/:id persists changes — GET returns updated data', async () => {
+    await put(`/worker/${specWorkerId}`, { name: 'Persisted Name' });
+    const res = await get(`/worker/${specWorkerId}`);
+    assert.equal(res.status, 200);
+    assert.equal(res.body.name, 'Persisted Name');
+  });
+});
+
+// ------------------------------------------------------------------ Feature: Payroll CSV export
+
+describe('Payroll CSV export (GET /farm/:id/export)', () => {
+  /**
+   * Raw HTTP request that returns the full response body as a string
+   * (bypasses the JSON.parse in the shared `request()` helper).
+   */
+  function requestRaw(method, urlPath) {
+    return new Promise((resolve, reject) => {
+      const url = new URL(urlPath, baseUrl);
+      const options = {
+        hostname: url.hostname,
+        port:     url.port,
+        path:     url.pathname + url.search,
+        method,
+      };
+      const req = http.request(options, (res) => {
+        let data = '';
+        res.on('data', chunk => { data += chunk; });
+        res.on('end', () => resolve({
+          status:      res.statusCode,
+          headers:     res.headers,
+          body:        data,
+        }));
+      });
+      req.on('error', reject);
+      req.end();
+    });
+  }
+
+  test('GET /farm/:id/export returns CSV with correct headers', async () => {
+    const res = await requestRaw('GET', `/farm/${farmId}/export`);
+    assert.equal(res.status, 200);
+    assert.ok(
+      res.headers['content-type'].includes('text/csv'),
+      `Expected text/csv, got ${res.headers['content-type']}`
+    );
+    assert.ok(
+      res.headers['content-disposition'].includes('attachment'),
+      'should set Content-Disposition: attachment'
+    );
+    assert.ok(
+      res.headers['content-disposition'].includes('payroll-export.csv'),
+      'filename should be payroll-export.csv'
+    );
+  });
+
+  test('GET /farm/:id/export CSV body has correct column headers', async () => {
+    const res = await requestRaw('GET', `/farm/${farmId}/export`);
+    assert.equal(res.status, 200);
+    const firstLine = res.body.split('\r\n')[0];
+    assert.equal(
+      firstLine,
+      'worker_name,shift_date,checked_in_at,amount_sats,payment_status'
+    );
+  });
+
+  test('GET /farm/:id/export CSV contains at least one data row', async () => {
+    const res = await requestRaw('GET', `/farm/${farmId}/export`);
+    assert.equal(res.status, 200);
+    const lines = res.body.split('\r\n').filter(l => l.length > 0);
+    assert.ok(lines.length >= 2, 'should have header + at least one data row');
+  });
+
+  test('GET /farm/:id/export?format=json returns JSON array', async () => {
+    const res = await get(`/farm/${farmId}/export?format=json`);
+    assert.equal(res.status, 200);
+    assert.ok(Array.isArray(res.body), 'should be an array');
+    assert.ok(res.body.length >= 1, 'should have at least one record');
+    const row = res.body[0];
+    assert.ok('worker_name'     in row, 'row should have worker_name');
+    assert.ok('shift_date'      in row, 'row should have shift_date');
+    assert.ok('checked_in_at'   in row, 'row should have checked_in_at');
+    assert.ok('payment_status'  in row, 'row should have payment_status');
+  });
+
+  test('GET /farm/:id/export?format=json rows show payment data for paid workers', async () => {
+    const res = await get(`/farm/${farmId}/export?format=json`);
+    assert.equal(res.status, 200);
+    // At least one row should show a paid status (Payroll describe paid shiftId)
+    const paidRows = res.body.filter(r => r.payment_status === 'paid');
+    assert.ok(paidRows.length >= 1, 'at least one paid row should exist');
+    assert.ok(paidRows[0].amount_sats > 0, 'paid rows should have amount_sats > 0');
+  });
+
+  test('GET /farm/:id/export returns 404 for unknown farm', async () => {
+    const res = await get('/farm/nonexistent-farm/export');
+    assert.equal(res.status, 404);
+    assert.ok(res.body.error);
+  });
+
+  test('GET /farm/:id/export returns 400 for invalid format', async () => {
+    const res = await get(`/farm/${farmId}/export?format=xml`);
+    assert.equal(res.status, 400);
+    assert.ok(res.body.error);
+  });
+
+  test('GET /farm/:id/export CSV rows contain worker name from earlier tests', async () => {
+    const res = await requestRaw('GET', `/farm/${farmId}/export`);
+    assert.equal(res.status, 200);
+    // "Test Worker" was renamed to "Updated Worker" in the Worker update tests
+    assert.ok(
+      res.body.includes('Worker') || res.body.includes('Foreman'),
+      'CSV should contain worker name data'
+    );
+  });
+});
+

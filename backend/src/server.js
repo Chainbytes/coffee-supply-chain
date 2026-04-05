@@ -14,6 +14,7 @@ const lotRoutes = require('./routes/lot');
 const payrollRoutes = require('./routes/payroll');
 const provenanceRoutes = require('./routes/provenance');
 const priceRoutes = require('./routes/price');
+const exportRoutes = require('./routes/export');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -82,6 +83,7 @@ app.use('/shift', shiftRoutes);
 app.use('/lot', lotRoutes);
 app.use('/payroll', payrollRoutes);
 app.use('/provenance', provenanceRoutes);
+app.use('/farm', exportRoutes);
 app.use('/', priceRoutes);
 
 // Health check
@@ -125,6 +127,9 @@ if (require.main === module) {
     console.log('    GET    /worker/:id/today');
     console.log('    GET    /provenance/:lotId');
     console.log('    GET    /provenance/:lotId/data');
+    console.log('    GET    /farm/:id/analytics');
+    console.log('    PUT    /worker/:id');
+    console.log('    GET    /farm/:id/export?format=csv|json');
     console.log('    GET    /btc-price');
     console.log('    POST   /usd-to-sats');
     console.log('    GET    /health');
