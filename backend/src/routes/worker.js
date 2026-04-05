@@ -155,6 +155,49 @@ router.put('/:id', (req, res) => {
 });
 
 /**
+ * PUT /worker/:id/pay-rate
+ * Set a worker's pay rate and optional overtime multiplier.
+ * Body: { pay_rate_sats: number, overtime_multiplier?: number }
+ */
+router.put('/:id/pay-rate', (req, res) => {
+  const db = getDb();
+  const worker = db.prepare('SELECT * FROM workers WHERE id = ?').get(req.params.id);
+  if (!worker) return res.status(404).json({ error: 'Worker not found' });
+
+  const { pay_rate_sats, overtime_multiplier } = req.body;
+  const updates = [];
+  const values = [];
+
+  if (pay_rate_sats !== undefined) {
+    const rate = Number(pay_rate_sats);
+    if (!Number.isInteger(rate) || rate < 0) {
+      return res.status(400).json({ error: 'pay_rate_sats must be a non-negative integer' });
+    }
+    updates.push('pay_rate_sats = ?');
+    values.push(rate);
+  }
+
+  if (overtime_multiplier !== undefined) {
+    const mult = Number(overtime_multiplier);
+    if (isNaN(mult) || mult < 1) {
+      return res.status(400).json({ error: 'overtime_multiplier must be a number >= 1' });
+    }
+    updates.push('overtime_multiplier = ?');
+    values.push(mult);
+  }
+
+  if (updates.length === 0) {
+    return res.status(400).json({ error: 'pay_rate_sats or overtime_multiplier is required' });
+  }
+
+  values.push(req.params.id);
+  db.prepare(`UPDATE workers SET ${updates.join(', ')} WHERE id = ?`).run(...values);
+
+  const updated = db.prepare('SELECT * FROM workers WHERE id = ?').get(req.params.id);
+  res.json(updated);
+});
+
+/**
  * GET /worker
  * List workers (optionally filtered by farm_id).
  */

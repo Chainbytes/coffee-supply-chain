@@ -131,4 +131,23 @@ router.get('/:id/analytics', (req, res) => {
   });
 });
 
+/**
+ * GET /farm/:id/pay-rates
+ * List all workers on a farm with their configured pay rates.
+ */
+router.get('/:id/pay-rates', (req, res) => {
+  const db = getDb();
+  const farm = db.prepare('SELECT id FROM farms WHERE id = ?').get(req.params.id);
+  if (!farm) return res.status(404).json({ error: 'Farm not found' });
+
+  const workers = db.prepare(`
+    SELECT id, name, role, pay_rate_sats, overtime_multiplier
+    FROM workers
+    WHERE farm_id = ?
+    ORDER BY name
+  `).all(req.params.id);
+
+  res.json({ farm_id: req.params.id, workers });
+});
+
 module.exports = router;

@@ -1,26 +1,5 @@
 [
   {
-    "id": 8,
-    "text": "Farm analytics endpoint — /farm/:id/analytics with worker count, shift count, lot count, recent activity. Old app had this, new one doesn't.",
-    "priority": "P0",
-    "addedBy": "U3LH6D7LN",
-    "addedAt": "2026-04-04"
-  },
-  {
-    "id": 9,
-    "text": "PUT /worker/:id — update worker name, phone, photo. Old app had name management endpoints. New app can create but not update.",
-    "priority": "P0",
-    "addedBy": "U3LH6D7LN",
-    "addedAt": "2026-04-04"
-  },
-  {
-    "id": 10,
-    "text": "Payroll CSV/PDF export — /farm/:id/export endpoint. Old app had this. Required for labor compliance.",
-    "priority": "P0",
-    "addedBy": "U3LH6D7LN",
-    "addedAt": "2026-04-04"
-  },
-  {
     "id": 11,
     "text": "Session auto-cleanup cron — old app deleted submitted sessions >24h. New app keeps everything. Add cleanup.",
     "priority": "P1",
@@ -36,7 +15,7 @@
   },
   {
     "id": 13,
-    "text": "100% unit test coverage by April 15th — backend (39 tests), mobile (0 tests). Need full coverage.",
+    "text": "100% unit test coverage by April 15th — backend (70 tests), mobile (0 tests). Need full coverage.",
     "priority": "P1",
     "addedBy": "U3LH6D7LN",
     "addedAt": "2026-04-04"

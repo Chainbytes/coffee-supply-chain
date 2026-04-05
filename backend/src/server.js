@@ -16,6 +16,8 @@ const provenanceRoutes = require('./routes/provenance');
 const priceRoutes = require('./routes/price');
 const exportRoutes = require('./routes/export');
 
+const { requireAuth } = require('./middleware/auth');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -43,22 +45,26 @@ app.use(cors({
 
 // ------------------------------------------------------------------ rate limiting
 
-// Global limiter: 100 requests per 15 minutes per IP
+const IS_TEST = process.env.NODE_ENV === 'test';
+
+// Global limiter: 100 requests per 15 minutes per IP (disabled in tests)
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 100,
+  max: IS_TEST ? 0 : 100,   // 0 = unlimited
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many requests, please try again later.' },
+  skip: () => IS_TEST,
 });
 
-// Stricter limiter on write endpoints: 30 POSTs per 15 minutes per IP
+// Stricter limiter on write endpoints: 30 POSTs per 15 minutes per IP (disabled in tests)
 const writeLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 30,
+  max: IS_TEST ? 0 : 30,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many write requests, please try again later.' },
+  skip: () => IS_TEST,
 });
 
 app.use(globalLimiter);
@@ -77,11 +83,25 @@ app.use((req, res, next) => {
   next();
 });
 
+// Protected write endpoints — auth applied per-route so GET endpoints remain public
+
 app.use('/farm', farmRoutes);
 app.use('/worker', workerRoutes);
+
+// Shift writes: POST /shift (foreman+admin), POST /shift/:id/close (foreman+admin)
+app.post('/shift', requireAuth('foreman'), (req, res, next) => next());
+app.post('/shift/:id/close', requireAuth('foreman'), (req, res, next) => next());
 app.use('/shift', shiftRoutes);
+
+// Lot writes: POST /lot (foreman+admin), POST /lot/:id/transfer (any authenticated)
+app.post('/lot', requireAuth('foreman'), (req, res, next) => next());
+app.post('/lot/:id/transfer', requireAuth('worker'), (req, res, next) => next());
 app.use('/lot', lotRoutes);
+
+// Payroll: admin only
+app.post('/payroll', requireAuth('admin'), (req, res, next) => next());
 app.use('/payroll', payrollRoutes);
+
 app.use('/provenance', provenanceRoutes);
 app.use('/farm', exportRoutes);
 app.use('/', priceRoutes);
@@ -106,6 +126,65 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: err.message || 'Internal server error' });
 });
 
+// ------------------------------------------------------------------ cron jobs (only when running as main process)
+if (require.main === module) {
+  const cron = require('node-cron');
+  const { getDb } = require('./db');
+  const { runBackup } = require('./scripts/backup');
+
+  // --- Session auto-cleanup: runs every hour
+  // Deletes checkins and shifts that were closed more than 24 hours ago.
+  cron.schedule('0 * * * *', () => {
+    try {
+      const db = getDb();
+      const cutoff = new Date(Date.now() - 24 * 3600 * 1000)
+        .toISOString().replace('T', ' ').slice(0, 19);
+
+      // First, capture the IDs to be deleted so we can also remove checkins
+      const staleShifts = db.prepare(`
+        SELECT id FROM shifts
+        WHERE status = 'closed' AND closed_at < ?
+      `).all(cutoff);
+
+      if (staleShifts.length === 0) {
+        console.log('[cron] cleanup: no stale sessions found');
+        return;
+      }
+
+      const ids = staleShifts.map(s => s.id);
+      const placeholders = ids.map(() => '?').join(', ');
+
+      const { changes: checkinChanges } = db.prepare(
+        `DELETE FROM checkins WHERE shift_id IN (${placeholders})`
+      ).run(...ids);
+
+      const { changes: shiftChanges } = db.prepare(
+        `DELETE FROM shifts WHERE id IN (${placeholders})`
+      ).run(...ids);
+
+      console.log(
+        `[cron] cleanup: removed ${shiftChanges} closed shift(s) ` +
+        `and ${checkinChanges} related checkin(s) (closed > 24h ago)`
+      );
+    } catch (err) {
+      console.error('[cron] cleanup error:', err.message);
+    }
+  });
+
+  // --- Daily database backup: runs at midnight
+  cron.schedule('0 0 * * *', async () => {
+    try {
+      const { dest, pruned } = await runBackup();
+      console.log(`[cron] backup: saved ${dest}`);
+      if (pruned.length > 0) {
+        console.log(`[cron] backup: pruned ${pruned.length} old backup(s)`);
+      }
+    } catch (err) {
+      console.error('[cron] backup error:', err.message);
+    }
+  });
+}
+
 // ------------------------------------------------------------------ start
 if (require.main === module) {
   app.listen(PORT, () => {
@@ -115,12 +194,16 @@ if (require.main === module) {
     console.log('');
     console.log('  Endpoints:');
     console.log('    POST   /farm');
+    console.log('    GET    /farm');
+    console.log('    GET    /farm/:id/pay-rates');
     console.log('    POST   /worker');
+    console.log('    PUT    /worker/:id/pay-rate');
     console.log('    POST   /shift');
     console.log('    POST   /shift/:id/checkin');
     console.log('    POST   /shift/:id/close');
     console.log('    POST   /lot');
     console.log('    POST   /lot/:id/transfer');
+    console.log('    GET    /lot/:id/qr');
     console.log('    GET    /lot/:id/provenance');
     console.log('    POST   /payroll');
     console.log('    GET    /worker/:id/payments');

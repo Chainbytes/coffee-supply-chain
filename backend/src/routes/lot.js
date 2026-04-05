@@ -148,6 +148,24 @@ router.post('/:id/transfer', async (req, res) => {
 });
 
 /**
+ * GET /lot/:id/qr
+ * Return a printable SVG QR code pointing to the lot's provenance page.
+ */
+router.get('/:id/qr', async (req, res) => {
+  const db = getDb();
+  const lot = db.prepare('SELECT id FROM lots WHERE id = ?').get(req.params.id);
+  if (!lot) return res.status(404).json({ error: 'Lot not found' });
+
+  const PROVENANCE_BASE = process.env.PROVENANCE_BASE_URL || 'http://134.122.8.237:3002';
+  const url = `${PROVENANCE_BASE}/provenance/${req.params.id}`;
+
+  const svg = await QRCode.toString(url, { type: 'svg', width: 256 });
+
+  res.setHeader('Content-Type', 'image/svg+xml');
+  res.send(svg);
+});
+
+/**
  * GET /lot/:id/provenance
  * Full chain of custody for a lot (API endpoint).
  */

@@ -37,6 +37,10 @@ function getDb() {
   _db.exec(schema.CREATE_TRANSFERS);
   _db.exec(schema.CREATE_PAYMENTS);
 
+  // Additive migrations — safe to run on existing databases
+  try { _db.exec("ALTER TABLE workers ADD COLUMN pay_rate_sats INTEGER NOT NULL DEFAULT 5000"); } catch {}
+  try { _db.exec("ALTER TABLE workers ADD COLUMN overtime_multiplier REAL NOT NULL DEFAULT 1.5"); } catch {}
+
   return _db;
 }
 

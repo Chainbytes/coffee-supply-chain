@@ -32,6 +32,8 @@ CREATE TABLE IF NOT EXISTS workers (
   role              TEXT NOT NULL DEFAULT 'worker',  -- 'worker' | 'foreman'
   liquid_address    TEXT,
   lightning_address TEXT,
+  pay_rate_sats     INTEGER NOT NULL DEFAULT 5000,
+  overtime_multiplier REAL NOT NULL DEFAULT 1.5,
   created_at        TEXT NOT NULL DEFAULT (datetime('now'))
 );`;
 
