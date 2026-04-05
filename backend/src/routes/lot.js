@@ -174,6 +174,18 @@ router.get('/:id/provenance', (req, res) => {
 });
 
 /**
+ * GET /lot?farm_id=
+ * List lots for a farm.
+ */
+router.get('/', (req, res) => {
+  const db = getDb();
+  const { farm_id } = req.query;
+  if (!farm_id) return res.status(400).json({ error: 'farm_id query param required' });
+  const lots = db.prepare('SELECT * FROM lots WHERE farm_id = ? ORDER BY created_at DESC').all(farm_id);
+  res.json(lots);
+});
+
+/**
  * GET /lot/:id
  * Get lot details.
  */
