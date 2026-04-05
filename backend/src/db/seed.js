@@ -202,6 +202,23 @@ function seed() {
     fmt(new Date(twoDaysAgo.getTime() + 25 * 86400000))
   );
 
+  // Step 5: exporter → roaster (completes the custody chain)
+  insertTransfer.run(
+    uuidv4(), lotId,
+    'Caravela Coffee El Salvador', 'Heart Coffee Roasters',
+    'roaster',
+    JSON.stringify({
+      action: 'roasting',
+      received_weight_kg: 69.0,
+      roasted_weight_kg: 58.6,
+      roast_profile: 'medium',
+      cupping_score: 86.5,
+      tasting_notes: 'Chocolate, citrus, brown sugar',
+      roast_date: new Date(twoDaysAgo.getTime() + 40 * 86400000).toISOString().slice(0, 10),
+    }),
+    fmt(new Date(twoDaysAgo.getTime() + 40 * 86400000))
+  );
+
   // ------------------------------------------------------------------ payments for shift 1 (all 5 workers)
   const PAY_RATE_SATS = 5000; // 5,000 sats per shift (~$3 at $60k BTC)
   const insertPayment = db.prepare(`
